@@ -1,0 +1,18 @@
+{
+  "name": "hashing",
+  "version": "1.0.0",
+  "description": "A small project for Alba.Art",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "revdancatt",
+    "genartclub"
+  ],
+  "author": "revdancatt",
+  "license": "MIT",
+  "devDependencies": {
+    "standard": "^17.1.0"
+  }
+}
