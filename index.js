@@ -662,7 +662,7 @@ const palettes = [
   }, 0.0666],
   [{
     name: 'Unshifted',
-    primaryColours: [['#E51531', 0.1], ['#2a70ae', 0.1], ['#FAB511', 0.1], ['#392b24', 0.1]],
+    primaryColours: [['#F15060', 0.2], ['#FFe800', 0.1], ['#00a95c', 0.1], ['#62c2b1', 0.1], ['#3d5588', 0.1], ['#ffb511', 0.1], ['#0078bf', 0.1]],
     backgroundColours: [['#E7CACF', 0.1]]
   }, 0.0666],
   [{
@@ -714,6 +714,17 @@ const setup = () => {
 
   // Now we want to pick a background colour
   features.backgroundColour = pickWeighted(features.palette.backgroundColours)
+  // Work out if on average the background is dark or light
+  // split the background into RGB values from the hex
+  const r = parseInt(features.backgroundColour.substring(1, 3), 16)
+  const g = parseInt(features.backgroundColour.substring(3, 5), 16)
+  const b = parseInt(features.backgroundColour.substring(5, 7), 16)
+  // Work out the average
+  const average = (r + g + b) / 3
+  // If the average is less than 64
+  features.textureColour = 'black'
+  if (average < 128) features.textureColour = 'white'
+
   // Remove the background colour from the the primary colours if it's in there
   const newPrimaryColours = []
   for (let i = 0; i < features.palette.primaryColours.length; i++) {
@@ -1188,13 +1199,11 @@ const setup = () => {
   for (let layer = 0; layer < features.layers; layer++) {
     maxSquaresToDelete += features.squares[layer].length
   }
-  console.log('maxSquaresToDelete', maxSquaresToDelete)
   // Now work out how many to delete
   maxSquaresToDelete = Math.floor(maxSquaresToDelete * 0.3)
   if (features.squaresAcross === 3) maxSquaresToDelete *= 0.333
   if (features.squaresAcross === 5) maxSquaresToDelete *= 0.666
 
-  console.log('maxSquaresToDelete', maxSquaresToDelete)
   // Now keep deleting squares until we have deleted enough randomly from random layers
   let squaresToDeleteCount = 0
   while (squaresToDeleteCount < maxSquaresToDelete) {
@@ -1210,7 +1219,6 @@ const setup = () => {
     }
   }
   // Count the number of keys in the squaresToDelete array
-  console.log('squaresToDelete', Object.keys(squaresToDelete).length)
   // Empty all the squares in the features object
   for (let layer = 0; layer < features.layers; layer++) {
     const squares = JSON.parse(JSON.stringify(features.squares[layer]))
@@ -1286,6 +1294,87 @@ const drawCanvas = async () => {
   // Fill in the background in white
   ctx.fillStyle = features.backgroundColour
   ctx.fillRect(0, 0, w, h)
+
+  // Now I want to add texture to the back, first we save the state
+  ctx.save()
+  // Now we move the origin to the middle of the canvas
+  ctx.translate(w / 2, h / 2)
+  // Now rotate it 45 degrees
+  ctx.rotate(Math.PI / 4)
+
+  // Now we're going to make lots of vertical lines made up of small circles
+  ctx.strokeStyle = features.textureColour
+  ctx.lineWidth = w / 1000
+  //
+  let alphaMod = 1.75
+  if (features.textureColour === 'white') alphaMod = 9
+
+  // We want to make sure we cover the whole thing so start at -w * 2 to the left and then go to w * 2 to the right
+  for (let x = -w * 2; x < w * 2; x += w / 100) {
+    // Now we need to move down the page with another loop so we can draw little circles
+    // all the way down the page
+    for (let y = -h * 2; y < h * 2; y += w / 300) {
+      // Now draw the circle
+      // the radiusMod can be anything between 400 and 1200
+      const radiusMod = 1000 + R.prng() * 2000
+      // The alpha can be anything from 0.05 to 0.00
+      const alpha = R.prng() * 0.02 * alphaMod
+      ctx.globalAlpha = alpha
+      ctx.beginPath()
+      ctx.arc(x, y, w / radiusMod, 0, Math.PI * 2)
+      ctx.stroke()
+    }
+  }
+
+  // Now are going to draw some concentric circles, made up of lots of little circles, like before
+  // Lets have three of them
+  for (let i = 0; i < 3; i++) {
+    // Pick a random x,y for the middle
+    const x = R.prng() * w - (w / 2)
+    const y = R.prng() * h - (h / 2)
+    // Pick a random radius somewhere between 0.5 and 1.0 of the height
+    let radius = h * (0.5 + R.prng() * 0.5) * 0.5
+    // Draw a circle filled in with the background colour
+    ctx.globalAlpha = 1
+    ctx.fillStyle = features.backgroundColour
+    ctx.beginPath()
+    ctx.arc(x, y, radius, 0, Math.PI * 2)
+    ctx.fill()
+
+    // The step is going to be w / 100
+    const step = w / 100
+    ctx.strokeStyle = features.textureColour
+    // Now draw circles until the radius is less than step
+    while (radius > step) {
+      // Work out the circumference of the circle
+      const circumference = Math.PI * radius * 2
+      // if a step around the circle is w / 300, how many, rounded, steps are there around the circle?
+      const numberOfSteps = Math.round(circumference / (w / 300))
+      // Now loop through the steps
+      for (let j = 0; j < numberOfSteps; j++) {
+        // Work out the angle
+        const angle = (Math.PI * 2) / numberOfSteps * j
+        // Now work out the x and y for the circle
+        const circleX = Math.cos(angle) * radius + x
+        const circleY = Math.sin(angle) * radius + y
+        // Now draw the circle
+        const radiusMod = 1000 + R.prng() * 2000
+        // The alpha can be anything from 0.05 to 0.00
+        const alpha = R.prng() * 0.02 * alphaMod
+        ctx.globalAlpha = alpha
+        ctx.beginPath()
+        ctx.arc(circleX, circleY, w / radiusMod, 0, Math.PI * 2)
+        ctx.stroke()
+      }
+      // Now reduce the radius by the step amount
+      radius -= step
+    }
+  }
+  // Set the alpha back to 1
+  ctx.globalAlpha = 1
+
+  // restore the state
+  ctx.restore()
 
   // If the palette is 'Print Me' set the blend mode to multiply
   if (features.palette.name === 'Print Me') ctx.globalCompositeOperation = 'multiply'
